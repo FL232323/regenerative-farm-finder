@@ -1,43 +1,109 @@
-'use client';
+"use client";
 
-interface MapProps {
-  center?: [number, number]; // Make `center` optional by adding `?`
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
+import "leaflet-defaulticon-compatibility";
+
+// Temporary type for farm data
+interface Farm {
+  _id?: string;
+  name: string;
+  location: {
+    coordinates: [number, number];
+  };
+  description?: string;
+  practices?: string[];
+  products?: string[];
 }
 
-const Map = ({ center = [0, 0] }: MapProps): JSX.Element => {
-  // Add validation to ensure `center` is an array with two numbers
-  if (!Array.isArray(center) || center.length !== 2) {
-    console.error("Invalid center prop. Expected an array of [lat, lng].");
-    return null; // or render a fallback UI
-  }
+export default function Map() {
+  const [farms, setFarms] = useState<Farm[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [lat, lng] = center;
+  // Default center of the map (can be changed later)
+  const defaultCenter: [number, number] = [39.8283, -98.5795]; // Geographical center of the USA
+  const defaultZoom = 4;
+
+  useEffect(() => {
+    // Placeholder for future database fetch
+    const fetchFarms = async () => {
+      try {
+        // In the future, this will be an actual API call to your backend
+        const mockFarms: Farm[] = [
+          {
+            _id: '1',
+            name: 'Sample Regenerative Farm',
+            location: {
+              coordinates: [-98.5795, 39.8283]
+            },
+            description: 'A sample regenerative farm in the center of the USA',
+            practices: ['Crop Rotation', 'No-Till Farming'],
+            products: ['Organic Vegetables', 'Grass-Fed Beef']
+          }
+        ];
+        
+        setFarms(mockFarms);
+        setIsLoading(false);
+      } catch (err) {
+        setError('Failed to fetch farms');
+        setIsLoading(false);
+      }
+    };
+
+    fetchFarms();
+  }, []);
+
+  if (isLoading) return <div>Loading farms...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
-    <div className="h-full w-full relative rounded-lg overflow-hidden bg-gray-100">
-      {/* Placeholder map image */}
-      <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
-        <div className="text-gray-500 flex flex-col items-center">
-          <svg 
-            className="w-12 h-12 mb-2" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={1.5} 
-              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-            />
-          </svg>
-          <span className="text-sm">
-            Map View ({lat.toFixed(4)}, {lng.toFixed(4)})
-          </span>
-        </div>
-      </div>
-    </div>
+    <MapContainer 
+      center={defaultCenter} 
+      zoom={defaultZoom} 
+      scrollWheelZoom={true}
+      className="h-[500px] w-full"
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      
+      {farms.map((farm) => (
+        <Marker 
+          key={farm._id} 
+          position={[farm.location.coordinates[1], farm.location.coordinates[0]]}
+        >
+          <Popup>
+            <div>
+              <h3 className="font-bold">{farm.name}</h3>
+              {farm.description && <p>{farm.description}</p>}
+              {farm.practices && (
+                <div>
+                  <strong>Practices:</strong>
+                  <ul>
+                    {farm.practices.map((practice, index) => (
+                      <li key={index}>{practice}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {farm.products && (
+                <div>
+                  <strong>Products:</strong>
+                  <ul>
+                    {farm.products.map((product, index) => (
+                      <li key={index}>{product}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </MapContainer>
   );
-};
-
-export default Map;
+}
