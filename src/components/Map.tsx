@@ -1,10 +1,16 @@
 'use client';
 
 interface MapProps {
-  center: [number, number];
+  center?: [number, number]; // Make `center` optional by adding `?`
 }
 
-const Map = ({ center }: MapProps): JSX.Element => {
+const Map = ({ center = [0, 0] }: MapProps): JSX.Element => {
+  // Add validation to ensure `center` is an array with two numbers
+  if (!Array.isArray(center) || center.length !== 2) {
+    console.error("Invalid center prop. Expected an array of [lat, lng].");
+    return null; // or render a fallback UI
+  }
+
   const [lat, lng] = center;
 
   return (
@@ -34,4 +40,4 @@ const Map = ({ center }: MapProps): JSX.Element => {
   );
 };
 
-export default Map; 
+export default Map;
