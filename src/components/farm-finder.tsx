@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +18,6 @@ export interface Farm {
 export function RegenerativeFarmFinder() {
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Sample farm data
   const farms: Farm[] = [
     {
       id: 1,
@@ -60,12 +61,10 @@ export function RegenerativeFarmFinder() {
             </Button>
           </div>
           
-          {/* Map Placeholder */}
           <div className="w-full h-64 bg-gray-100 rounded-lg mb-6 flex items-center justify-center">
             <p className="text-gray-500">Map Component Would Go Here</p>
           </div>
 
-          {/* Farm Listings */}
           <div className="space-y-4">
             {farms.map(farm => (
               <Card key={farm.id} className="hover:shadow-lg transition-shadow">
