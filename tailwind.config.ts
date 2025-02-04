@@ -3,9 +3,8 @@ import type { Config } from "tailwindcss"
 const config = {
   darkMode: ["class"],
   content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/**/*.{js,ts,jsx,tsx,mdx}"
   ],
-  prefix: "",
   theme: {
     container: {
       center: true,
@@ -15,6 +14,9 @@ const config = {
       },
     },
     extend: {
+      borderColor: {
+        border: "hsl(var(--border))",
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
