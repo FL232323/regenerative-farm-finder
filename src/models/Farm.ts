@@ -1,88 +1,54 @@
 import mongoose from 'mongoose';
 
-export interface IFarm extends mongoose.Document {
-  name: string;
-  location: {
-    type: 'Point';
-    coordinates: [number, number];
-  };
-  description?: string;
-  practices?: string[];
-  products?: string[];
-  contactInfo?: {
-    email?: string;
-    phone?: string;
-    website?: string;
-  };
-  imageUrl?: string;
-}
-
-const FarmSchema = new mongoose.Schema<IFarm>({
-  name: { 
-    type: String, 
-    required: true,
-    trim: true
+const farmSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Please provide a farm name'],
+    trim: true,
   },
   location: {
     type: {
       type: String,
       enum: ['Point'],
-      required: true
+      default: 'Point',
     },
     coordinates: {
       type: [Number],
       required: true,
-      validate: {
-        validator: function(v: [number, number]) {
-          return v.length === 2 && 
-                 v[0] >= -180 && v[0] <= 180 && 
-                 v[1] >= -90 && v[1] <= 90;
-        },
-        message: 'Invalid coordinates'
-      }
     }
   },
-  description: { 
-    type: String, 
-    trim: true 
+  address: {
+    street: String,
+    city: String,
+    state: String,
+    zipCode: String,
+    country: String,
   },
-  practices: [{ 
-    type: String, 
-    trim: true 
-  }],
-  products: [{ 
-    type: String, 
-    trim: true 
-  }],
-  contactInfo: {
-    email: { 
-      type: String, 
-      lowercase: true,
-      trim: true,
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address']
-    },
-    phone: { 
-      type: String, 
-      trim: true 
-    },
-    website: { 
-      type: String, 
-      trim: true,
-      match: [/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/, 'Please fill a valid website URL']
-    }
+  description: {
+    type: String,
+    required: [true, 'Please provide a farm description'],
   },
-  imageUrl: { 
-    type: String, 
-    trim: true 
-  }
-}, {
-  timestamps: true
+  practices: [{
+    type: String,
+    enum: ['Organic', 'Biodynamic', 'Permaculture', 'Regenerative', 'Other'],
+  }],
+  website: String,
+  phone: String,
+  email: String,
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-// Create a geospatial index
-FarmSchema.index({ location: '2dsphere' });
+// Create a geospatial index on the location field
+farmSchema.index({ location: '2dsphere' });
 
-// Prevent duplicate farm names
-FarmSchema.index({ name: 1 }, { unique: true });
+// Prevent mongoose from creating a model multiple times during hot reloading
+const Farm = mongoose.models.Farm || mongoose.model('Farm', farmSchema);
 
-export default mongoose.models.Farm || mongoose.model<IFarm>('Farm', FarmSchema);
+export default Farm;
