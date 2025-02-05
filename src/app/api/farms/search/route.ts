@@ -2,6 +2,49 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Farm from '@/models/Farm';
 
+// Add rate limiting for Nominatim (1 request per second)
+const NOMINATIM_DELAY = 1000; // 1 second
+let lastRequestTime = 0;
+
+async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: number } | null> {
+  // Ensure we're respecting the rate limit
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  if (timeSinceLastRequest < NOMINATIM_DELAY) {
+    await new Promise(resolve => setTimeout(resolve, NOMINATIM_DELAY - timeSinceLastRequest));
+  }
+  lastRequestTime = Date.now();
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=USA&format=json&limit=1`,
+      {
+        headers: {
+          'User-Agent': 'RegenerativeFarmFinder/1.0', // Required by Nominatim ToS
+          'Accept-Language': 'en'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Geocoding service error');
+    }
+
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon)
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
@@ -20,19 +63,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // First, fetch coordinates for zip code
-    const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${zipCode}&countrycode=us&limit=1&key=${process.env.OPENCAGE_API_KEY}`;
-    const geocodeRes = await fetch(geocodeUrl);
-    const geocodeData = await geocodeRes.json();
-
-    if (!geocodeData.results?.[0]?.geometry) {
+    // Geocode zip code
+    const location = await geocodeZipCode(zipCode);
+    if (!location) {
       return NextResponse.json(
-        { error: 'Invalid zip code' },
+        { error: 'Invalid zip code or geocoding service error' },
         { status: 400 }
       );
     }
-
-    const { lat, lng } = geocodeData.results[0].geometry;
 
     // Build query
     let query: any = {
@@ -40,7 +78,7 @@ export async function GET(request: NextRequest) {
         $near: {
           $geometry: {
             type: 'Point',
-            coordinates: [lng, lat] // MongoDB expects [longitude, latitude]
+            coordinates: [location.lon, location.lat] // MongoDB expects [longitude, latitude]
           },
           $maxDistance: radius * 1609.34 // Convert miles to meters
         }
@@ -63,7 +101,7 @@ export async function GET(request: NextRequest) {
       const [farmLng, farmLat] = farm.location.coordinates;
       
       // Calculate distance using Haversine formula
-      const distance = calculateDistance(lat, lng, farmLat, farmLng);
+      const distance = calculateDistance(location.lat, location.lon, farmLat, farmLng);
       
       return {
         ...farmData,
