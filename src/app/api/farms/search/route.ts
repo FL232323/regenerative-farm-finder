@@ -79,50 +79,88 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const query = {
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [location.lon, location.lat]
-          },
-          $maxDistance: radius * 1609.34
+    // Convert miles to meters for the search radius
+    const radiusInMeters = radius * 1609.34;
+
+    // Create Atlas Search query
+    const searchQuery = {
+      $search: {
+        index: "default", // the name we gave our search index
+        compound: {
+          must: [
+            {
+              geoWithin: {
+                path: "location",
+                circle: {
+                  center: {
+                    type: "Point",
+                    coordinates: [location.lon, location.lat]
+                  },
+                  radius: radiusInMeters
+                }
+              }
+            }
+          ],
+          ...(type && {
+            filter: [{
+              text: {
+                query: type,
+                path: "businessType"
+              }
+            }]
+          })
         }
       }
     };
 
-    if (type) {
-      query.businessType = type;
-    }
+    console.log('Atlas Search query:', JSON.stringify(searchQuery, null, 2));
 
-    console.log('MongoDB query:', JSON.stringify(query, null, 2));
-
-    // First, let's check if we can find any farms at all
-    const totalFarms = await Farm.countDocuments();
-    console.log('Total farms in database:', totalFarms);
-
-    // Then check if our index exists
-    const indexes = await Farm.collection.indexes();
-    console.log('Collection indexes:', indexes);
-
-    const farms = await Farm.find(query)
-      .limit(50)
-      .select('name businessType location address description products images');
+    // Execute the search query
+    const farms = await Farm.aggregate([
+      searchQuery,
+      {
+        $addFields: {
+          distance: {
+            $divide: [
+              {
+                $multiply: [
+                  {
+                    $sqrt: {
+                      $add: [
+                        {
+                          $pow: [
+                            { $multiply: [69.1, { $subtract: ["$location.coordinates.1", location.lat] }] },
+                            2
+                          ]
+                        },
+                        {
+                          $pow: [
+                            {
+                              $multiply: [
+                                69.1,
+                                { $cos: { $degreesToRadians: location.lat } },
+                                { $subtract: ["$location.coordinates.0", location.lon] }
+                              ]
+                            },
+                            2
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  10
+                ]
+              },
+              10
+            ]
+          }
+        }
+      }
+    ]).exec();
     
     console.log('Found farms:', farms.length);
 
-    const farmsWithDistance = farms.map(farm => {
-      const farmData = farm.toObject();
-      const [farmLng, farmLat] = farm.location.coordinates;
-      const distance = calculateDistance(location.lat, location.lon, farmLat, farmLng);
-      return {
-        ...farmData,
-        distance: Math.round(distance * 10) / 10
-      };
-    });
-
-    console.log('Processed farms with distance:', farmsWithDistance.length);
-    return NextResponse.json(farmsWithDistance, { status: 200 });
+    return NextResponse.json(farms, { status: 200 });
   } catch (error: any) {
     console.error('Search error:', error);
     return NextResponse.json(
@@ -130,20 +168,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3959;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function toRad(degrees: number): number {
-  return degrees * (Math.PI / 180);
 }
