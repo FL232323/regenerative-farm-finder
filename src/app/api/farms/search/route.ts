@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Farm from '@/models/Farm';
 
-// Add rate limiting for Nominatim (1 request per second)
-const NOMINATIM_DELAY = 1000; // 1 second
+const NOMINATIM_DELAY = 1000;
 let lastRequestTime = 0;
 
 async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: number } | null> {
-  // Ensure we're respecting the rate limit
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
   if (timeSinceLastRequest < NOMINATIM_DELAY) {
@@ -16,28 +14,34 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
   lastRequestTime = Date.now();
 
   try {
+    console.log('Geocoding zip code:', zipCode);
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=USA&format=json&limit=1`,
       {
         headers: {
-          'User-Agent': 'RegenerativeFarmFinder/1.0', // Required by Nominatim ToS
+          'User-Agent': 'RegenerativeFarmFinder/1.0',
           'Accept-Language': 'en'
         }
       }
     );
 
     if (!response.ok) {
+      console.error('Geocoding response not ok:', response.status);
       throw new Error('Geocoding service error');
     }
 
     const data = await response.json();
+    console.log('Geocoding response:', data);
     
     if (data && data.length > 0) {
-      return {
+      const result = {
         lat: parseFloat(data[0].lat),
         lon: parseFloat(data[0].lon)
       };
+      console.log('Parsed coordinates:', result);
+      return result;
     }
+    console.log('No geocoding results found');
     return null;
   } catch (error) {
     console.error('Geocoding error:', error);
@@ -47,81 +51,89 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('Starting search request');
     await connectDB();
+    console.log('MongoDB connected');
     
-    // Get search parameters from URL
     const searchParams = request.nextUrl.searchParams;
     const zipCode = searchParams.get('zipCode');
-    const radius = Number(searchParams.get('radius')) || 50; // Default 50 miles
+    const radius = Number(searchParams.get('radius')) || 50;
     const type = searchParams.get('type');
     
-    // If no zip code provided, return error
+    console.log('Search parameters:', { zipCode, radius, type });
+
     if (!zipCode) {
+      console.log('No zip code provided');
       return NextResponse.json(
         { error: 'Zip code is required' },
         { status: 400 }
       );
     }
 
-    // Geocode zip code
     const location = await geocodeZipCode(zipCode);
     if (!location) {
+      console.log('Geocoding failed');
       return NextResponse.json(
         { error: 'Invalid zip code or geocoding service error' },
         { status: 400 }
       );
     }
 
-    // Build query
-    let query: any = {
+    const query = {
       location: {
         $near: {
           $geometry: {
             type: 'Point',
-            coordinates: [location.lon, location.lat] // MongoDB expects [longitude, latitude]
+            coordinates: [location.lon, location.lat]
           },
-          $maxDistance: radius * 1609.34 // Convert miles to meters
+          $maxDistance: radius * 1609.34
         }
       }
     };
 
-    // Add business type filter if provided
     if (type) {
       query.businessType = type;
     }
 
-    // Fetch farms within radius
-    const farms = await Farm.find(query)
-      .limit(50) // Limit results
-      .select('name businessType location address description products images'); // Select relevant fields
+    console.log('MongoDB query:', JSON.stringify(query, null, 2));
 
-    // Calculate distance for each farm
+    // First, let's check if we can find any farms at all
+    const totalFarms = await Farm.countDocuments();
+    console.log('Total farms in database:', totalFarms);
+
+    // Then check if our index exists
+    const indexes = await Farm.collection.indexes();
+    console.log('Collection indexes:', indexes);
+
+    const farms = await Farm.find(query)
+      .limit(50)
+      .select('name businessType location address description products images');
+    
+    console.log('Found farms:', farms.length);
+
     const farmsWithDistance = farms.map(farm => {
       const farmData = farm.toObject();
       const [farmLng, farmLat] = farm.location.coordinates;
-      
-      // Calculate distance using Haversine formula
       const distance = calculateDistance(location.lat, location.lon, farmLat, farmLng);
-      
       return {
         ...farmData,
-        distance: Math.round(distance * 10) / 10 // Round to 1 decimal place
+        distance: Math.round(distance * 10) / 10
       };
     });
 
+    console.log('Processed farms with distance:', farmsWithDistance.length);
     return NextResponse.json(farmsWithDistance, { status: 200 });
   } catch (error: any) {
     console.error('Search error:', error);
     return NextResponse.json(
-      { error: 'Error processing search' },
+      { error: 'Error processing search: ' + error.message },
       { status: 500 }
     );
   }
 }
 
-// Haversine formula for calculating distance between two points
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3959; // Radius of Earth in miles
+  const R = 3959;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
