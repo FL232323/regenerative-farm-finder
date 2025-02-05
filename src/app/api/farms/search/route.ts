@@ -82,42 +82,23 @@ export async function GET(request: NextRequest) {
     // Convert miles to meters for the search radius
     const radiusInMeters = radius * 1609.34;
 
-    // Create Atlas Search query
-    const searchQuery = {
-      $search: {
-        index: "default", // the name we gave our search index
-        compound: {
-          must: [
-            {
-              geoWithin: {
-                path: "location",
-                circle: {
-                  center: {
-                    type: "Point",
-                    coordinates: [location.lon, location.lat]
-                  },
-                  radius: radiusInMeters
-                }
-              }
-            }
-          ],
-          ...(type && {
-            filter: [{
-              text: {
-                query: type,
-                path: "businessType"
-              }
-            }]
-          })
-        }
-      }
-    };
-
-    console.log('Atlas Search query:', JSON.stringify(searchQuery, null, 2));
-
-    // Execute the search query
+    // Execute Atlas Search query
     const farms = await Farm.aggregate([
-      searchQuery,
+      {
+        $search: {
+          "index": "Farmsearch", // Updated index name
+          "geoWithin": {
+            "path": "location",
+            "circle": {
+              "center": {
+                "type": "Point",
+                "coordinates": [location.lon, location.lat]
+              },
+              "radius": radiusInMeters
+            }
+          }
+        }
+      },
       {
         $addFields: {
           distance: {
@@ -156,10 +137,9 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-    ]).exec();
-    
-    console.log('Found farms:', farms.length);
+    ]);
 
+    console.log('Found farms:', farms.length);
     return NextResponse.json(farms, { status: 200 });
   } catch (error: any) {
     console.error('Search error:', error);
