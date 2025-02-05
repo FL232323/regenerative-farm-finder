@@ -6,6 +6,11 @@ const farmSchema = new mongoose.Schema({
     required: [true, 'Please provide a farm name'],
     trim: true,
   },
+  businessType: {
+    type: [String],
+    required: true,
+    enum: ['Restaurant', 'Grocery Store', 'Farmers Market', 'Farm Store', 'Co-op Pickup', 'Farm'],
+  },
   location: {
     type: {
       type: String,
@@ -22,27 +27,57 @@ const farmSchema = new mongoose.Schema({
     city: String,
     state: String,
     zipCode: String,
-    country: String,
   },
   description: {
     type: String,
     required: [true, 'Please provide a farm description'],
   },
+  products: [{
+    category: String,
+    items: [{
+      name: String,
+      availability: {
+        type: String,
+        enum: ['Year-round', 'Seasonal', 'Limited'],
+        default: 'Year-round'
+      }
+    }]
+  }],
+  operatingHours: [{
+    day: {
+      type: String,
+      enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+    },
+    open: String,
+    close: String,
+  }],
+  scheduledTimes: [{
+    day: String,
+    time: String,
+    notes: String,
+  }],
+  shippingOptions: {
+    offersShipping: {
+      type: Boolean,
+      default: false
+    },
+    radius: Number,
+    minimumOrder: Number,
+    shippingNotes: String
+  },
   practices: [{
     type: String,
-    enum: ['Organic', 'Biodynamic', 'Permaculture', 'Regenerative', 'Other'],
+    enum: ['Regenerative', 'Organic', 'Biodynamic', 'Grass-fed', 'Pastured'],
   }],
-  website: String,
-  phone: String,
-  email: String,
-  createdAt: {
-    type: Date,
-    default: Date.now,
+  contact: {
+    phone: String,
+    email: String,
+    website: String,
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
+  images: [{
+    url: String,
+    caption: String
+  }],
 });
 
 // Create a geospatial index on the location field
