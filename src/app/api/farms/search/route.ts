@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
-import Farm from '@/models/Farm';
+import { db } from '@/lib/db';
+import { farms } from '@/lib/schema';
+import { sql } from 'drizzle-orm';
 
 // Add rate limiting for Nominatim (1 request per second)
 const NOMINATIM_DELAY = 1000; // 1 second
@@ -20,7 +21,7 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
       `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=USA&format=json&limit=1`,
       {
         headers: {
-          'User-Agent': 'RegenerativeFarmFinder/1.0', // Required by Nominatim ToS
+          'User-Agent': 'RegenerativeFarmFinder/1.0',
           'Accept-Language': 'en'
         }
       }
@@ -47,15 +48,11 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    
-    // Get search parameters from URL
     const searchParams = request.nextUrl.searchParams;
     const zipCode = searchParams.get('zipCode');
-    const radius = Number(searchParams.get('radius')) || 50; // Default 50 miles
+    const radius = Number(searchParams.get('radius')) || 50; // Default to 50 miles
     const type = searchParams.get('type');
     
-    // If no zip code provided, return error
     if (!zipCode) {
       return NextResponse.json(
         { error: 'Zip code is required' },
@@ -63,7 +60,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Geocode zip code
     const location = await geocodeZipCode(zipCode);
     if (!location) {
       return NextResponse.json(
@@ -72,44 +68,49 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build query
-    let query: any = {
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [location.lon, location.lat] // MongoDB expects [longitude, latitude]
-          },
-          $maxDistance: radius * 1609.34 // Convert miles to meters
-        }
-      }
-    };
+    // Create a spatial point from the coordinates
+    const point = `POINT(${location.lon} ${location.lat})`;
+
+    // Base query using ST_Distance_Sphere for accurate distance calculation
+    let baseQuery = sql`
+      SELECT *,
+        ST_Distance_Sphere(
+          location,
+          ST_GeomFromText(${point}, 4326)
+        ) * 0.000621371 as distance  -- Convert meters to miles
+      FROM ${farms}
+      WHERE ST_Distance_Sphere(
+        location,
+        ST_GeomFromText(${point}, 4326)
+      ) * 0.000621371 <= ${radius}
+    `;
 
     // Add business type filter if provided
     if (type) {
-      query.businessType = type;
+      baseQuery = sql`
+        ${baseQuery}
+        AND JSON_CONTAINS(business_type, ${JSON.stringify(type)}, '$')
+      `;
     }
 
-    // Fetch farms within radius
-    const farms = await Farm.find(query)
-      .limit(50) // Limit results
-      .select('name businessType location address description products images'); // Select relevant fields
+    // Execute query
+    const results = await db.execute(baseQuery);
 
-    // Calculate distance for each farm
-    const farmsWithDistance = farms.map(farm => {
-      const farmData = farm.toObject();
-      const [farmLng, farmLat] = farm.location.coordinates;
-      
-      // Calculate distance using Haversine formula
-      const distance = calculateDistance(location.lat, location.lon, farmLat, farmLng);
-      
-      return {
-        ...farmData,
-        distance: Math.round(distance * 10) / 10 // Round to 1 decimal place
-      };
-    });
+    // Process results
+    const farmResults = results.rows.map((row: any) => ({
+      ...row,
+      businessType: JSON.parse(row.business_type),
+      address: JSON.parse(row.address),
+      products: row.products ? JSON.parse(row.products) : [],
+      operatingHours: row.operating_hours ? JSON.parse(row.operating_hours) : [],
+      scheduledTimes: row.scheduled_times ? JSON.parse(row.scheduled_times) : [],
+      shippingOptions: row.shipping_options ? JSON.parse(row.shipping_options) : null,
+      images: row.images ? JSON.parse(row.images) : [],
+      distance: Math.round(row.distance * 10) / 10
+    }))
+    .sort((a, b) => a.distance - b.distance);
 
-    return NextResponse.json(farmsWithDistance, { status: 200 });
+    return NextResponse.json(farmResults, { status: 200 });
   } catch (error: any) {
     console.error('Search error:', error);
     return NextResponse.json(
@@ -117,21 +118,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Haversine formula for calculating distance between two points
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3959; // Radius of Earth in miles
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function toRad(degrees: number): number {
-  return degrees * (Math.PI / 180);
 }
