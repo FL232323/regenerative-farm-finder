@@ -55,6 +55,10 @@ export async function GET(request: NextRequest) {
     await connectDB();
     console.log('MongoDB connected');
     
+    // First, let's verify we can query the collection at all
+    const totalDocs = await Farm.countDocuments();
+    console.log('Total documents in collection:', totalDocs);
+
     const searchParams = request.nextUrl.searchParams;
     const zipCode = searchParams.get('zipCode');
     const radius = Number(searchParams.get('radius')) || 50;
@@ -82,11 +86,11 @@ export async function GET(request: NextRequest) {
     // Convert miles to meters for the search radius
     const radiusInMeters = radius * 1609.34;
 
-    // Execute Atlas Search query
-    const farms = await Farm.aggregate([
+    // Build the aggregation pipeline
+    const pipeline = [
       {
         $search: {
-          "index": "Farmsearch", // Updated index name
+          "index": "Farmsearch",
           "geoWithin": {
             "path": "location",
             "circle": {
@@ -98,49 +102,25 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-      },
-      {
-        $addFields: {
-          distance: {
-            $divide: [
-              {
-                $multiply: [
-                  {
-                    $sqrt: {
-                      $add: [
-                        {
-                          $pow: [
-                            { $multiply: [69.1, { $subtract: ["$location.coordinates.1", location.lat] }] },
-                            2
-                          ]
-                        },
-                        {
-                          $pow: [
-                            {
-                              $multiply: [
-                                69.1,
-                                { $cos: { $degreesToRadians: location.lat } },
-                                { $subtract: ["$location.coordinates.0", location.lon] }
-                              ]
-                            },
-                            2
-                          ]
-                        }
-                      ]
-                    }
-                  },
-                  10
-                ]
-              },
-              10
-            ]
-          }
-        }
       }
-    ]);
+    ];
 
-    console.log('Found farms:', farms.length);
-    return NextResponse.json(farms, { status: 200 });
+    console.log('Executing aggregation pipeline:', JSON.stringify(pipeline, null, 2));
+
+    try {
+      // First try a simple find to verify database connection
+      const sampleDoc = await Farm.findOne();
+      console.log('Sample document from collection:', sampleDoc);
+
+      // Now execute the search
+      const farms = await Farm.aggregate(pipeline);
+      console.log('Search results:', farms);
+
+      return NextResponse.json(farms, { status: 200 });
+    } catch (error) {
+      console.error('Error during aggregation:', error);
+      throw error;
+    }
   } catch (error: any) {
     console.error('Search error:', error);
     return NextResponse.json(
