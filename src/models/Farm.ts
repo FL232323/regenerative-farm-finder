@@ -1,5 +1,17 @@
 import mongoose from 'mongoose';
 
+const pointSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    enum: ['Point'],
+    required: true
+  },
+  coordinates: {
+    type: [Number],
+    required: true
+  }
+});
+
 const farmSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -7,15 +19,9 @@ const farmSchema = new mongoose.Schema({
     trim: true,
   },
   location: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      default: 'Point',
-    },
-    coordinates: {
-      type: [Number],
-      required: true,
-    }
+    type: pointSchema,
+    required: true,
+    index: '2dsphere'
   },
   address: {
     street: String,
@@ -27,6 +33,11 @@ const farmSchema = new mongoose.Schema({
   description: {
     type: String,
     required: [true, 'Please provide a farm description'],
+  },
+  businessType: {
+    type: [String],
+    enum: ['Farm', 'Grocery Store', 'Farmers Market', 'Restaurant', 'Pickup Location'],
+    default: ['Farm']
   },
   practices: [{
     type: String,
@@ -45,10 +56,9 @@ const farmSchema = new mongoose.Schema({
   },
 });
 
-// Create a geospatial index on the location field
-farmSchema.index({ location: '2dsphere' });
+// This is now handled by the schema definition
+// farmSchema.index({ location: '2dsphere' });
 
-// Prevent mongoose from creating a model multiple times during hot reloading
 const Farm = mongoose.models.Farm || mongoose.model('Farm', farmSchema);
 
 export default Farm;
