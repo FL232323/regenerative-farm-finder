@@ -95,18 +95,18 @@ export default function Home() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-700" />
           </div>
         ) : (
-          searchResults.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Map */}
-              <div className="lg:order-2 rounded-lg overflow-hidden shadow-lg bg-white">
-                <Map
-                  farms={searchResults}
-                  center={mapCenter}
-                  zoom={mapZoom}
-                />
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Map - Always show */}
+            <div className="lg:order-2 rounded-lg overflow-hidden shadow-lg bg-white">
+              <Map
+                farms={searchResults}
+                center={mapCenter}
+                zoom={mapZoom}
+              />
+            </div>
 
-              {/* Results List */}
+            {/* Results List - Show only when there are results */}
+            {searchResults.length > 0 ? (
               <div className="lg:order-1 space-y-6">
                 <h2 className="text-2xl font-semibold mb-4">
                   {searchResults.length} {searchResults.length === 1 ? 'Result' : 'Results'} Found
@@ -118,16 +118,15 @@ export default function Home() {
                   />
                 ))}
               </div>
-            </div>
-          )
-        )}
-
-        {/* No Results State */}
-        {!isLoading && !error && searchResults.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">
-              Enter your zip code above to find regenerative farms in your area
-            </p>
+            ) : (
+              <div className="lg:order-1">
+                <div className="text-center py-12">
+                  <p className="text-gray-500 text-lg">
+                    Enter your zip code above to find regenerative farms in your area
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>
