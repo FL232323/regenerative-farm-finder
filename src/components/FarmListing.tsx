@@ -20,6 +20,22 @@ interface FarmListingProps {
         availability: string;
       }>;
     }>;
+    operatingHours?: Array<{
+      day: string;
+      open: string;
+      close: string;
+    }>;
+    scheduledTimes?: Array<{
+      day: string;
+      time: string;
+      notes?: string;
+    }>;
+    shippingOptions?: {
+      offersShipping: boolean;
+      radius?: number;
+      minimumOrder?: number;
+      shippingNotes?: string;
+    };
     distance: number;
     images?: Array<{
       url: string;
@@ -29,6 +45,11 @@ interface FarmListingProps {
 }
 
 export function FarmListing({ farm }: FarmListingProps) {
+  const isShippingProvider = farm.shippingOptions?.offersShipping;
+  const formattedHours = farm.operatingHours?.map(h => 
+    `${h.day}: ${h.open} - ${h.close}`
+  ).join(', ');
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
       <div className="p-6">
@@ -36,12 +57,17 @@ export function FarmListing({ farm }: FarmListingProps) {
         <div className="flex justify-between items-start mb-4">
           <div>
             <h3 className="text-xl font-semibold text-gray-900">{farm.name}</h3>
-            <div className="text-sm text-gray-600 mt-1">
-              {farm.businessType.join(', ')}
+            <div className="text-sm text-gray-600 mt-1 flex items-center gap-2">
+              <span>{farm.businessType.join(', ')}</span>
+              {isShippingProvider && (
+                <span className="inline-flex items-center bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded">
+                  Ships
+                </span>
+              )}
             </div>
           </div>
           <div className="text-right">
-            <span className="inline-block bg-green-100 text-green-800 text-sm font-medium px-2.5 py-0.5 rounded">
+            <span className={`inline-block ${isShippingProvider ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'} text-sm font-medium px-2.5 py-0.5 rounded`}>
               {farm.distance.toFixed(1)} miles
             </span>
           </div>
@@ -68,6 +94,28 @@ export function FarmListing({ farm }: FarmListingProps) {
           </p>
         )}
 
+        {/* Hours or Scheduled Times */}
+        {(formattedHours || farm.scheduledTimes) && (
+          <div className="mb-4">
+            {formattedHours && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Hours:</span> {formattedHours}
+              </div>
+            )}
+            {farm.scheduledTimes && farm.scheduledTimes.length > 0 && (
+              <div className="text-sm text-gray-600 mt-1">
+                <span className="font-medium">Schedule:</span>
+                {farm.scheduledTimes.map((time, index) => (
+                  <div key={index} className="ml-2">
+                    {time.day}: {time.time}
+                    {time.notes && <span className="text-gray-500"> ({time.notes})</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Products */}
         {farm.products && farm.products.length > 0 && (
           <div className="mb-4">
@@ -75,13 +123,39 @@ export function FarmListing({ farm }: FarmListingProps) {
             <div className="flex flex-wrap gap-2">
               {farm.products.map((product, index) => (
                 <div 
-                  key={index}
+                  key={`${product.category}-${index}`}
                   className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded"
                 >
                   {product.category}
+                  {product.items && product.items.length > 0 && (
+                    <span className="text-gray-500">
+                      {' '}({product.items.length} items)
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Shipping Information */}
+        {isShippingProvider && farm.shippingOptions && (
+          <div className="mb-4 text-sm text-gray-600">
+            {farm.shippingOptions.radius && (
+              <div>
+                <span className="font-medium">Shipping Radius:</span> Up to {farm.shippingOptions.radius} miles
+              </div>
+            )}
+            {farm.shippingOptions.minimumOrder && (
+              <div>
+                <span className="font-medium">Minimum Order:</span> ${farm.shippingOptions.minimumOrder}
+              </div>
+            )}
+            {farm.shippingOptions.shippingNotes && (
+              <div className="mt-1 text-gray-500">
+                {farm.shippingOptions.shippingNotes}
+              </div>
+            )}
           </div>
         )}
 
