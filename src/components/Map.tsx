@@ -1,71 +1,55 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
 import "leaflet-defaulticon-compatibility";
 
-// Temporary type for farm data
 interface Farm {
-  _id?: string;
+  _id: string;
   name: string;
+  businessType: string[];
   location: {
     coordinates: [number, number];
   };
+  address: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+  };
   description?: string;
-  practices?: string[];
-  products?: string[];
+  distance?: number;
 }
 
-export default function Map() {
-  const [farms, setFarms] = useState<Farm[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface MapProps {
+  farms: Farm[];
+  center: [number, number];
+  zoom: number;
+}
 
-  // Default center of the map (can be changed later)
-  const defaultCenter: [number, number] = [39.8283, -98.5795]; // Geographical center of the USA
-  const defaultZoom = 4;
-
+// Component to handle map center and zoom updates
+function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  
   useEffect(() => {
-    // Placeholder for future database fetch
-    const fetchFarms = async () => {
-      try {
-        // In the future, this will be an actual API call to your backend
-        const mockFarms: Farm[] = [
-          {
-            _id: '1',
-            name: 'Sample Regenerative Farm',
-            location: {
-              coordinates: [-98.5795, 39.8283]
-            },
-            description: 'A sample regenerative farm in the center of the USA',
-            practices: ['Crop Rotation', 'No-Till Farming'],
-            products: ['Organic Vegetables', 'Grass-Fed Beef']
-          }
-        ];
-        
-        setFarms(mockFarms);
-        setIsLoading(false);
-      } catch (err) {
-        setError('Failed to fetch farms');
-        setIsLoading(false);
-      }
-    };
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  
+  return null;
+}
 
-    fetchFarms();
-  }, []);
-
-  if (isLoading) return <div>Loading farms...</div>;
-  if (error) return <div>Error: {error}</div>;
-
+export default function Map({ farms, center, zoom }: MapProps) {
   return (
     <MapContainer 
-      center={defaultCenter} 
-      zoom={defaultZoom} 
+      center={center}
+      zoom={zoom}
       scrollWheelZoom={true}
-      className="h-[500px] w-full"
+      className="h-[600px] w-full"
     >
+      <MapController center={center} zoom={zoom} />
+      
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -76,28 +60,36 @@ export default function Map() {
           key={farm._id} 
           position={[farm.location.coordinates[1], farm.location.coordinates[0]]}
         >
-          <Popup>
-            <div>
-              <h3 className="font-bold">{farm.name}</h3>
-              {farm.description && <p>{farm.description}</p>}
-              {farm.practices && (
-                <div>
-                  <strong>Practices:</strong>
-                  <ul>
-                    {farm.practices.map((practice, index) => (
-                      <li key={index}>{practice}</li>
-                    ))}
-                  </ul>
+          <Popup className="min-w-[200px]">
+            <div className="py-2">
+              <h3 className="font-bold text-lg mb-1">{farm.name}</h3>
+              
+              <div className="text-sm text-gray-600 mb-2">
+                {farm.businessType.join(', ')}
+              </div>
+              
+              {farm.address && (
+                <div className="text-sm mb-2">
+                  {farm.address.street && <div>{farm.address.street}</div>}
+                  <div>
+                    {[farm.address.city, farm.address.state, farm.address.zipCode]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </div>
                 </div>
               )}
-              {farm.products && (
-                <div>
-                  <strong>Products:</strong>
-                  <ul>
-                    {farm.products.map((product, index) => (
-                      <li key={index}>{product}</li>
-                    ))}
-                  </ul>
+              
+              {typeof farm.distance === 'number' && (
+                <div className="text-sm text-gray-600">
+                  {farm.distance} miles away
+                </div>
+              )}
+              
+              {farm.description && (
+                <div className="mt-2 text-sm">
+                  {farm.description.length > 150 
+                    ? `${farm.description.substring(0, 150)}...` 
+                    : farm.description}
                 </div>
               )}
             </div>
