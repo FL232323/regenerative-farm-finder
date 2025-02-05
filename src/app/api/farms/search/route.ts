@@ -20,7 +20,7 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
       `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=USA&format=json&limit=1`,
       {
         headers: {
-          'User-Agent': 'RegenerativeFarmFinder/1.0', // Required by Nominatim ToS
+          'User-Agent': 'RegenerativeFarmFinder/1.0',
           'Accept-Language': 'en'
         }
       }
@@ -45,83 +45,12 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
   }
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    await connectDB();
-    
-    // Get search parameters from URL
-    const searchParams = request.nextUrl.searchParams;
-    const zipCode = searchParams.get('zipCode');
-    const radius = Number(searchParams.get('radius')) || 50; // Default 50 miles
-    const type = searchParams.get('type');
-    
-    // If no zip code provided, return error
-    if (!zipCode) {
-      return NextResponse.json(
-        { error: 'Zip code is required' },
-        { status: 400 }
-      );
-    }
-
-    // Geocode zip code
-    const location = await geocodeZipCode(zipCode);
-    if (!location) {
-      return NextResponse.json(
-        { error: 'Invalid zip code or geocoding service error' },
-        { status: 400 }
-      );
-    }
-
-    // Build query
-    let query: any = {
-      location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [location.lon, location.lat] // MongoDB expects [longitude, latitude]
-          },
-          $maxDistance: radius * 1609.34 // Convert miles to meters
-        }
-      }
-    };
-
-    // Add business type filter if provided
-    if (type) {
-      query.businessType = type;
-    }
-
-    // Fetch farms within radius
-    const farms = await Farm.find(query)
-      .limit(50) // Limit results
-      .select('name businessType location address description products images'); // Select relevant fields
-
-    // Calculate distance for each farm
-    const farmsWithDistance = farms.map(farm => {
-      const farmData = farm.toObject();
-      const [farmLng, farmLat] = farm.location.coordinates;
-      
-      // Calculate distance using Haversine formula
-      const distance = calculateDistance(location.lat, location.lon, farmLat, farmLng);
-      
-      return {
-        ...farmData,
-        distance: Math.round(distance * 10) / 10 // Round to 1 decimal place
-      };
-    });
-
-    return NextResponse.json(farmsWithDistance, { status: 200 });
-  } catch (error: any) {
-    console.error('Search error:', error);
-    return NextResponse.json(
-      { error: 'Error processing search' },
-      { status: 500 }
-    );
-  }
+function toRad(degrees: number): number {
+  return degrees * (Math.PI / 180);
 }
 
-// Haversine formula for calculating distance between two points
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3959; // Radius of Earth in miles
+  const R = 3959; // Earth's radius in miles
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
@@ -132,6 +61,101 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
-function toRad(degrees: number): number {
-  return degrees * (Math.PI / 180);
+export async function GET(request: NextRequest) {
+  try {
+    await connectDB();
+    
+    const searchParams = request.nextUrl.searchParams;
+    const zipCode = searchParams.get('zipCode');
+    const radius = Number(searchParams.get('radius')) || 50; // Default to 50 miles
+    const type = searchParams.get('type');
+    
+    if (!zipCode) {
+      return NextResponse.json(
+        { error: 'Zip code is required' },
+        { status: 400 }
+      );
+    }
+
+    const location = await geocodeZipCode(zipCode);
+    if (!location) {
+      return NextResponse.json(
+        { error: 'Invalid zip code or geocoding service error' },
+        { status: 400 }
+      );
+    }
+
+    // Base query with location
+    const baseQuery = {
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [location.lon, location.lat]
+          },
+          $maxDistance: radius * 1609.34 // Convert miles to meters
+        }
+      }
+    };
+
+    // Add business type filter if provided
+    if (type) {
+      baseQuery['businessType'] = type;
+    }
+
+    // Split into local and shipping queries
+    const localQuery = {
+      ...baseQuery,
+      $or: [
+        { 'shippingOptions.offersShipping': { $ne: true } },
+        { 'shippingOptions.offersShipping': { $exists: false } }
+      ]
+    };
+
+    const shippingQuery = {
+      ...baseQuery,
+      'shippingOptions.offersShipping': true
+    };
+
+    // Execute both queries
+    const [localResults, shippingResults] = await Promise.all([
+      Farm.find(localQuery)
+        .select('name businessType location address description products operatingHours scheduledTimes images')
+        .limit(50),
+      Farm.find(shippingQuery)
+        .select('name businessType location address description products shippingOptions images')
+        .limit(50)
+    ]);
+
+    // Add distance calculations
+    const addDistance = (farm) => {
+      const [lng, lat] = farm.location.coordinates;
+      return {
+        ...farm.toObject(),
+        distance: Math.round(calculateDistance(location.lat, location.lon, lat, lng) * 10) / 10
+      };
+    };
+
+    const localResultsWithDistance = localResults.map(addDistance)
+      .sort((a, b) => a.distance - b.distance);
+    
+    const shippingResultsWithDistance = shippingResults.map(addDistance)
+      .sort((a, b) => a.distance - b.distance);
+
+    // Combine results maintaining existing API response format
+    const combinedResults = [
+      ...localResultsWithDistance,
+      ...shippingResultsWithDistance.filter(farm => 
+        farm.shippingOptions?.radius ? farm.distance <= farm.shippingOptions.radius : true
+      )
+    ];
+
+    return NextResponse.json(combinedResults, { status: 200 });
+  } catch (error: any) {
+    console.error('Search error:', error);
+    return NextResponse.json(
+      { error: 'Error processing search' },
+      { status: 500 }
+    );
+  }
 }
