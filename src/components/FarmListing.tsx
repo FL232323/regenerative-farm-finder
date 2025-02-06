@@ -13,18 +13,11 @@ interface FarmListingProps {
       zipCode?: string;
     };
     description?: string;
-    products?: Array<{
-      category: string;
-      items: Array<{
-        name: string;
-        availability: string;
-      }>;
-    }>;
-    distance: number;
-    images?: Array<{
-      url: string;
-      caption: string;
-    }>;
+    distance?: number;
+    practices?: string[];
+    website?: string;
+    phone?: string;
+    email?: string;
   };
 }
 
@@ -42,7 +35,7 @@ export function FarmListing({ farm }: FarmListingProps) {
           </div>
           <div className="text-right">
             <span className="inline-block bg-green-100 text-green-800 text-sm font-medium px-2.5 py-0.5 rounded">
-              {farm.distance.toFixed(1)} miles
+              {typeof farm.distance === 'number' ? `${farm.distance.toFixed(1)} miles` : 'Distance unavailable'}
             </span>
           </div>
         </div>
@@ -68,17 +61,17 @@ export function FarmListing({ farm }: FarmListingProps) {
           </p>
         )}
 
-        {/* Products */}
-        {farm.products && farm.products.length > 0 && (
+        {/* Practices */}
+        {farm.practices && farm.practices.length > 0 && (
           <div className="mb-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-2">Available Products:</h4>
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">Farming Practices:</h4>
             <div className="flex flex-wrap gap-2">
-              {farm.products.map((product, index) => (
+              {farm.practices.map((practice, index) => (
                 <div 
                   key={index}
                   className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded"
                 >
-                  {product.category}
+                  {practice}
                 </div>
               ))}
             </div>
@@ -96,14 +89,16 @@ export function FarmListing({ farm }: FarmListingProps) {
             Get Directions
           </a>
           
-          <button
-            onClick={() => {
-              // TODO: Implement "View Details" functionality
-            }}
-            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-md hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-          >
-            View Details
-          </button>
+          {farm.website && (
+            <a
+              href={farm.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-green-700 bg-green-100 rounded-md hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              Visit Website
+            </a>
+          )}
         </div>
       </div>
     </div>
