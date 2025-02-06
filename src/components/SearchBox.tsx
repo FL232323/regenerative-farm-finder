@@ -39,8 +39,19 @@ export default function SearchBox({ onSearch, onError, setIsLoading }: SearchBox
         throw new Error(data.error || 'Error searching farms');
       }
 
-      // Get coordinates from first result for map centering
-      const location: [number, number] = data[0]?.location.coordinates.reverse() || [39.8283, -98.5795];
+      // Log the raw data for debugging
+      console.log('API Response Data:', data);
+
+      // Instead of using the first farm's coordinates, get them from the API response
+      const zipLocation = await fetch(
+        `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=USA&format=json&limit=1`
+      ).then(r => r.json());
+
+      const location: [number, number] = zipLocation.length > 0
+        ? [parseFloat(zipLocation[0].lat), parseFloat(zipLocation[0].lon)]
+        : [39.8283, -98.5795];
+
+      console.log('Using location:', location);
       
       onSearch(data, location);
       router.push(`/?${params.toString()}`);
