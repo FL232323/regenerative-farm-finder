@@ -21,12 +21,21 @@ interface Farm {
   };
   description?: string;
   distance?: number;
+  deliveryOptions: {
+    localPickup: boolean;
+    delivery: boolean;
+    deliveryRange?: number;
+    pickupDetails?: string;
+    deliveryDetails?: string;
+  };
 }
 
 interface MapProps {
   farms: Farm[];
   center: [number, number];
   zoom: number;
+  selectedFarm?: Farm | null;
+  onMarkerClick: (farm: Farm) => void;
 }
 
 // Component to handle map center and zoom updates
@@ -40,7 +49,7 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   return null;
 }
 
-export default function Map({ farms, center, zoom }: MapProps) {
+export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer 
@@ -60,6 +69,9 @@ export default function Map({ farms, center, zoom }: MapProps) {
           <Marker 
             key={farm._id} 
             position={[farm.location.coordinates[1], farm.location.coordinates[0]]}
+            eventHandlers={{
+              click: () => onMarkerClick(farm)
+            }}
           >
             <Popup className="min-w-[200px]">
               <div className="py-2">
@@ -82,7 +94,7 @@ export default function Map({ farms, center, zoom }: MapProps) {
                 
                 {typeof farm.distance === 'number' && (
                   <div className="text-sm text-gray-600">
-                    {farm.distance} miles away
+                    {farm.distance.toFixed(1)} miles away
                   </div>
                 )}
                 
