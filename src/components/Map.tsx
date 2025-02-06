@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { Marker as LeafletMarker } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
 import "leaflet-defaulticon-compatibility";
@@ -38,12 +39,10 @@ interface MapProps {
   onMarkerClick: (farm: Farm) => void;
 }
 
-// Convert MongoDB coordinates [longitude, latitude] to Leaflet [latitude, longitude]
 function toLeafletCoordinates(coordinates: [number, number]): [number, number] {
   return [coordinates[1], coordinates[0]];
 }
 
-// Calculate bounds from farm locations
 function calculateBounds(farms: Farm[]): [number, number][] {
   if (!farms.length) return [];
   
@@ -57,6 +56,72 @@ function calculateBounds(farms: Farm[]): [number, number][] {
   ];
 }
 
+function FarmMarker({ farm, selected, onClick }: { 
+  farm: Farm; 
+  selected: boolean;
+  onClick: (farm: Farm) => void;
+}) {
+  const markerRef = useRef<LeafletMarker>(null);
+  const position = toLeafletCoordinates(farm.location.coordinates);
+
+  useEffect(() => {
+    if (selected && markerRef.current) {
+      markerRef.current.openPopup();
+    }
+  }, [selected]);
+
+  return (
+    <Marker 
+      ref={markerRef}
+      position={position}
+      eventHandlers={{
+        click: () => onClick(farm)
+      }}
+    >
+      <Popup>
+        <div className="py-2">
+          <h3 className="font-bold text-lg mb-1">{farm.name}</h3>
+          {farm.businessType && (
+            <div className="text-sm text-gray-600 mb-2">
+              {farm.businessType.join(', ')}
+            </div>
+          )}
+          {farm.address && (
+            <div className="text-sm mb-2">
+              {farm.address.street && <div>{farm.address.street}</div>}
+              <div>
+                {[farm.address.city, farm.address.state, farm.address.zipCode]
+                  .filter(Boolean)
+                  .join(', ')}
+              </div>
+            </div>
+          )}
+          {typeof farm.distance === 'number' && (
+            <div className="text-sm text-gray-600">
+              {farm.distance.toFixed(1)} miles away
+            </div>
+          )}
+          {farm.description && (
+            <div className="mt-2 text-sm">
+              {farm.description}
+            </div>
+          )}
+          {farm.deliveryOptions?.deliveryDetails && (
+            <div className="mt-2 text-sm text-green-600">
+              {farm.deliveryOptions.deliveryDetails}
+            </div>
+          )}
+          {farm.deliveryOptions?.pickupDetails && (
+            <div className="mt-2 text-sm text-green-600">
+              {farm.deliveryOptions.pickupDetails}
+            </div>
+          )}
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
+
 function MapController({ center, zoom, farms }: { center: [number, number]; zoom: number; farms: Farm[] }) {
   const map = useMap();
   
@@ -65,11 +130,9 @@ function MapController({ center, zoom, farms }: { center: [number, number]; zoom
       if (farms.length > 0) {
         const bounds = calculateBounds(farms);
         if (bounds.length) {
-          // If we have farms, fit to their bounds
           map.fitBounds(bounds, { padding: [50, 50] });
         }
       } else {
-        // If no farms or explicit center, use the provided center and zoom
         map.setView(center, zoom, {
           animate: true,
           duration: 0.5
@@ -81,14 +144,12 @@ function MapController({ center, zoom, farms }: { center: [number, number]; zoom
   return null;
 }
 
-// Default to New York City
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
 const DEFAULT_ZOOM = 11;
 
 export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
   const [mapKey, setMapKey] = useState(0);
   
-  // Reset map when farms change
   useEffect(() => {
     setMapKey(prev => prev + 1);
   }, [farms.length]);
@@ -113,60 +174,14 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        {farms.map((farm) => {
-          const markerPosition = toLeafletCoordinates(farm.location.coordinates);
-          
-          return (
-            <Marker 
-              key={farm._id} 
-              position={markerPosition}
-              eventHandlers={{
-                click: () => onMarkerClick(farm)
-              }}
-            >
-              <Popup>
-                <div className="py-2">
-                  <h3 className="font-bold text-lg mb-1">{farm.name}</h3>
-                  {farm.businessType && (
-                    <div className="text-sm text-gray-600 mb-2">
-                      {farm.businessType.join(', ')}
-                    </div>
-                  )}
-                  {farm.address && (
-                    <div className="text-sm mb-2">
-                      {farm.address.street && <div>{farm.address.street}</div>}
-                      <div>
-                        {[farm.address.city, farm.address.state, farm.address.zipCode]
-                          .filter(Boolean)
-                          .join(', ')}
-                      </div>
-                    </div>
-                  )}
-                  {typeof farm.distance === 'number' && (
-                    <div className="text-sm text-gray-600">
-                      {farm.distance.toFixed(1)} miles away
-                    </div>
-                  )}
-                  {farm.description && (
-                    <div className="mt-2 text-sm">
-                      {farm.description}
-                    </div>
-                  )}
-                  {farm.deliveryOptions?.deliveryDetails && (
-                    <div className="mt-2 text-sm text-green-600">
-                      {farm.deliveryOptions.deliveryDetails}
-                    </div>
-                  )}
-                  {farm.deliveryOptions?.pickupDetails && (
-                    <div className="mt-2 text-sm text-green-600">
-                      {farm.deliveryOptions.pickupDetails}
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+        {farms.map((farm) => (
+          <FarmMarker
+            key={farm._id}
+            farm={farm}
+            selected={selectedFarm?._id === farm._id}
+            onClick={onMarkerClick}
+          />
+        ))}
       </MapContainer>
     </div>
   );
