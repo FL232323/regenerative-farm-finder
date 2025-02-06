@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
 import "leaflet-defaulticon-compatibility";
@@ -38,38 +39,47 @@ interface MapProps {
   onMarkerClick: (farm: Farm) => void;
 }
 
-// Component to handle map center and zoom updates
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   
   useEffect(() => {
-    map.setView(center, zoom, { animate: true });
+    if (map) {
+      // Add a slight delay to ensure smooth transitions
+      setTimeout(() => {
+        map.setView(center, zoom, {
+          animate: true,
+          duration: 1 // 1 second animation
+        });
+      }, 100);
+    }
   }, [center, zoom, map]);
   
   return null;
 }
 
-// Default map center on New York City
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
-const DEFAULT_ZOOM = 10;
+const DEFAULT_ZOOM = 11;
 
 export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
-  const mapRef = useRef(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Ensure we have valid center and zoom, falling back to defaults if needed
-  const mapCenter = center || DEFAULT_CENTER;
-  const mapZoom = zoom || DEFAULT_ZOOM;
+  // Handle map initialization
+  const handleMapCreated = (map: LeafletMap) => {
+    mapRef.current = map;
+    setIsLoaded(true);
+  };
 
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer 
-        center={mapCenter}
-        zoom={mapZoom}
+        center={center || DEFAULT_CENTER}
+        zoom={zoom || DEFAULT_ZOOM}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
-        ref={mapRef}
+        whenCreated={handleMapCreated}
       >
-        <MapController center={mapCenter} zoom={mapZoom} />
+        {isLoaded && <MapController center={center || DEFAULT_CENTER} zoom={zoom || DEFAULT_ZOOM} />}
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -92,9 +102,11 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
               <div className="py-2">
                 <h3 className="font-bold text-lg mb-1">{farm.name}</h3>
                 
-                <div className="text-sm text-gray-600 mb-2">
-                  {farm.businessType.join(', ')}
-                </div>
+                {farm.businessType && (
+                  <div className="text-sm text-gray-600 mb-2">
+                    {farm.businessType.join(', ')}
+                  </div>
+                )}
                 
                 {farm.address && (
                   <div className="text-sm mb-2">
@@ -118,6 +130,18 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
                     {farm.description.length > 150 
                       ? `${farm.description.substring(0, 150)}...` 
                       : farm.description}
+                  </div>
+                )}
+
+                {farm.deliveryOptions?.deliveryDetails && (
+                  <div className="mt-2 text-sm text-green-600">
+                    {farm.deliveryOptions.deliveryDetails}
+                  </div>
+                )}
+
+                {farm.deliveryOptions?.pickupDetails && (
+                  <div className="mt-2 text-sm text-green-600">
+                    {farm.deliveryOptions.pickupDetails}
                   </div>
                 )}
               </div>
