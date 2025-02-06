@@ -12,7 +12,7 @@ interface Farm {
   name: string;
   businessType: string[];
   location: {
-    coordinates: [number, number];
+    coordinates: [number, number];  // [longitude, latitude]
   };
   address: {
     street?: string;
@@ -94,7 +94,7 @@ interface ThreeColumnLayoutProps {
   searchLocation?: [number, number];
 }
 
-const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
+const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];  // [latitude, longitude]
 
 export default function ThreeColumnLayout({ farms, searchLocation }: ThreeColumnLayoutProps) {
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
@@ -118,17 +118,19 @@ export default function ThreeColumnLayout({ farms, searchLocation }: ThreeColumn
       currentZoom: mapZoom
     });
 
-    // Add null checks for coordinates
     if (!farm.location?.coordinates || farm.location.coordinates.length !== 2) {
       console.error('Invalid coordinates for farm:', farm.name);
       return;
     }
 
-    const [lon, lat] = farm.location.coordinates;
-    console.log('Setting new map center:', [lat, lon]);
+    // Convert from [longitude, latitude] to [latitude, longitude]
+    const [longitude, latitude] = farm.location.coordinates;
+    const newCenter: [number, number] = [latitude, longitude];
+    
+    console.log('Setting new map center:', newCenter);
 
     setSelectedFarm(farm);
-    setMapCenter([lat, lon]);
+    setMapCenter(newCenter);
     setMapZoom(13);
   };
 
