@@ -137,15 +137,29 @@ export async function GET(request: NextRequest) {
       {
         $match: {
           $or: [
-            {"deliveryOptions.localPickup": true},
+            { "deliveryOptions.localPickup": true },
             {
-              "deliveryOptions.delivery": true,
-              distance: { $lte: "$deliveryOptions.deliveryRange" }
+              $and: [
+                { "deliveryOptions.delivery": true },
+                {
+                  $expr: {
+                    $lte: ["$distance", "$deliveryOptions.deliveryRange"]
+                  }
+                }
+              ]
             }
           ]
         }
       }
     ];
+
+    if (type) {
+      pipeline.push({
+        $match: {
+          businessType: type
+        }
+      });
+    }
 
     const farms = await Farm.aggregate(pipeline);
     return NextResponse.json(farms, { status: 200 });
