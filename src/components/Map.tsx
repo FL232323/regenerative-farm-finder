@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
@@ -43,22 +43,33 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   const map = useMap();
   
   useEffect(() => {
-    map.setView(center, zoom);
+    map.setView(center, zoom, { animate: true });
   }, [center, zoom, map]);
   
   return null;
 }
 
+// Default map center on New York City
+const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
+const DEFAULT_ZOOM = 10;
+
 export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
+  const mapRef = useRef(null);
+
+  // Ensure we have valid center and zoom, falling back to defaults if needed
+  const mapCenter = center || DEFAULT_CENTER;
+  const mapZoom = zoom || DEFAULT_ZOOM;
+
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer 
-        center={center}
-        zoom={zoom}
+        center={mapCenter}
+        zoom={mapZoom}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
+        ref={mapRef}
       >
-        <MapController center={center} zoom={zoom} />
+        <MapController center={mapCenter} zoom={mapZoom} />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -70,7 +81,11 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
             key={farm._id} 
             position={[farm.location.coordinates[1], farm.location.coordinates[0]]}
             eventHandlers={{
-              click: () => onMarkerClick(farm)
+              click: () => {
+                if (onMarkerClick) {
+                  onMarkerClick(farm);
+                }
+              }
             }}
           >
             <Popup className="min-w-[200px]">
