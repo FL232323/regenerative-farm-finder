@@ -11,7 +11,7 @@ interface Farm {
   name: string;
   businessType: string[];
   location: {
-    coordinates: [number, number];
+    coordinates: [number, number];  // [longitude, latitude]
   };
   address: {
     street?: string;
@@ -32,10 +32,16 @@ interface Farm {
 
 interface MapProps {
   farms: Farm[];
-  center: [number, number];
+  center: [number, number];  // [latitude, longitude]
   zoom: number;
   selectedFarm?: Farm | null;
   onMarkerClick: (farm: Farm) => void;
+}
+
+// Helper function to convert coordinates
+function toLeafletCoordinates(coordinates: [number, number]): [number, number] {
+  // Convert from [longitude, latitude] to [latitude, longitude]
+  return [coordinates[1], coordinates[0]];
 }
 
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -46,40 +52,32 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
     console.log('MapController - New zoom:', zoom);
     
     if (map && center && center.length === 2 && !isNaN(center[0]) && !isNaN(center[1])) {
-      console.log('Setting map view to:', center);
+      // No need to transform here as center should already be in [lat, lng]
       map.setView(center, zoom, {
         animate: true,
         duration: 0.5
       });
-    } else {
-      console.warn('Invalid map center or zoom:', { center, zoom });
     }
   }, [center, zoom, map]);
   
   return null;
 }
 
-const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
+const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];  // [latitude, longitude]
 const DEFAULT_ZOOM = 11;
 
 export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
-  console.log('Map component render:', { center, zoom, selectedFarm: selectedFarm?.name });
-
-  const validCenter = center && center.length === 2 && !isNaN(center[0]) && !isNaN(center[1])
-    ? center
-    : DEFAULT_CENTER;
-  
-  const validZoom = !isNaN(zoom) ? zoom : DEFAULT_ZOOM;
+  console.log('Map render:', { center, zoom, selectedFarm: selectedFarm?.name });
 
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer 
-        center={validCenter}
-        zoom={validZoom}
+        center={center || DEFAULT_CENTER}
+        zoom={zoom || DEFAULT_ZOOM}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
       >
-        <MapController center={validCenter} zoom={validZoom} />
+        <MapController center={center || DEFAULT_CENTER} zoom={zoom || DEFAULT_ZOOM} />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -87,17 +85,14 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
         />
         
         {farms.map((farm) => {
-          const coordinates: [number, number] = [
-            farm.location.coordinates[1],
-            farm.location.coordinates[0]
-          ];
-          
-          console.log(`Marker for ${farm.name}:`, coordinates);
+          // Convert coordinates for the marker
+          const markerPosition = toLeafletCoordinates(farm.location.coordinates);
+          console.log(`Marker position for ${farm.name}:`, markerPosition);
           
           return (
             <Marker 
               key={farm._id} 
-              position={coordinates}
+              position={markerPosition}
               eventHandlers={{
                 click: () => {
                   console.log('Marker clicked:', farm.name);
