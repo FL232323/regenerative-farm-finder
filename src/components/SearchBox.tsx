@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface SearchBoxProps {
-  onSearch: (results: any[]) => void;
+  onSearch: (results: any[], location: [number, number]) => void;
   onError: (error: string) => void;
   setIsLoading: (loading: boolean) => void;
 }
@@ -39,7 +39,10 @@ export default function SearchBox({ onSearch, onError, setIsLoading }: SearchBox
         throw new Error(data.error || 'Error searching farms');
       }
 
-      onSearch(data);
+      // Get coordinates from first result for map centering
+      const location: [number, number] = data[0]?.location.coordinates.reverse() || [39.8283, -98.5795];
+      
+      onSearch(data, location);
       router.push(`/?${params.toString()}`);
     } catch (error: any) {
       onError(error.message);
@@ -61,7 +64,6 @@ export default function SearchBox({ onSearch, onError, setIsLoading }: SearchBox
   return (
     <form onSubmit={handleSearch} className="w-full">
       <div className="flex flex-col md:flex-row gap-4">
-        {/* Zip Code Input */}
         <div className="flex-1">
           <label htmlFor="zipCode" className="block text-sm font-medium text-gray-600 mb-1">
             Zip Code
@@ -78,7 +80,6 @@ export default function SearchBox({ onSearch, onError, setIsLoading }: SearchBox
           />
         </div>
 
-        {/* Radius Selection */}
         <div className="w-full md:w-1/4">
           <label htmlFor="radius" className="block text-sm font-medium text-gray-600 mb-1">
             Distance
@@ -97,7 +98,6 @@ export default function SearchBox({ onSearch, onError, setIsLoading }: SearchBox
           </select>
         </div>
 
-        {/* Business Type Selection */}
         <div className="w-full md:w-1/3">
           <label htmlFor="type" className="block text-sm font-medium text-gray-600 mb-1">
             Business Type
@@ -118,7 +118,6 @@ export default function SearchBox({ onSearch, onError, setIsLoading }: SearchBox
         </div>
       </div>
 
-      {/* Search Button */}
       <button
         type="submit"
         className="mt-4 w-full md:w-auto px-8 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors"
