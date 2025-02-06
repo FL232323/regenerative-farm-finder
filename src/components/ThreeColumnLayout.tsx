@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import dynamic from 'next/dynamic';
 
@@ -83,33 +83,22 @@ interface ThreeColumnLayoutProps {
   searchLocation?: [number, number];
 }
 
-// Default center on New York City
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
-const DEFAULT_ZOOM = 10;
 
 export default function ThreeColumnLayout({ farms, searchLocation }: ThreeColumnLayoutProps) {
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>(searchLocation || DEFAULT_CENTER);
-  const [mapZoom, setMapZoom] = useState(searchLocation ? DEFAULT_ZOOM : 8);
+  const [mapZoom, setMapZoom] = useState(searchLocation ? 11 : 9);
 
   const pickupFarms = farms.filter(farm => farm.deliveryOptions?.localPickup);
   const deliveryFarms = farms.filter(farm => farm.deliveryOptions?.delivery);
 
   const handleFarmClick = (farm: Farm) => {
+    console.log('Farm clicked:', farm.name); // Debug log
     setSelectedFarm(farm);
-    if (farm.location?.coordinates) {
-      setMapCenter([farm.location.coordinates[1], farm.location.coordinates[0]]);
-      setMapZoom(13);
-    }
+    setMapCenter([farm.location.coordinates[1], farm.location.coordinates[0]]);
+    setMapZoom(13);
   };
-
-  // Update map center when search location changes
-  useEffect(() => {
-    if (searchLocation) {
-      setMapCenter(searchLocation);
-      setMapZoom(DEFAULT_ZOOM);
-    }
-  }, [searchLocation]);
 
   return (
     <div className="h-screen grid grid-cols-1 lg:grid-cols-7 gap-4 p-4">
