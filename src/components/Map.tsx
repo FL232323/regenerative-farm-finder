@@ -38,21 +38,11 @@ interface MapProps {
   onMarkerClick: (farm: Farm) => void;
 }
 
-// Helper function to convert coordinates
-function toLeafletCoordinates(coordinates: [number, number]): [number, number] {
-  // Convert from [longitude, latitude] to [latitude, longitude]
-  return [coordinates[1], coordinates[0]];
-}
-
 function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   
   useEffect(() => {
-    console.log('MapController - New center:', center);
-    console.log('MapController - New zoom:', zoom);
-    
-    if (map && center && center.length === 2 && !isNaN(center[0]) && !isNaN(center[1])) {
-      // No need to transform here as center should already be in [lat, lng]
+    if (map && center && center.length === 2) {
       map.setView(center, zoom, {
         animate: true,
         duration: 0.5
@@ -63,12 +53,10 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   return null;
 }
 
-const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];  // [latitude, longitude]
+const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
 const DEFAULT_ZOOM = 11;
 
 export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
-  console.log('Map render:', { center, zoom, selectedFarm: selectedFarm?.name });
-
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer 
@@ -84,65 +72,56 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        {farms.map((farm) => {
-          // Convert coordinates for the marker
-          const markerPosition = toLeafletCoordinates(farm.location.coordinates);
-          console.log(`Marker position for ${farm.name}:`, markerPosition);
-          
-          return (
-            <Marker 
-              key={farm._id} 
-              position={markerPosition}
-              eventHandlers={{
-                click: () => {
-                  console.log('Marker clicked:', farm.name);
-                  onMarkerClick(farm);
-                }
-              }}
-            >
-              <Popup>
-                <div className="py-2">
-                  <h3 className="font-bold text-lg mb-1">{farm.name}</h3>
-                  {farm.businessType && (
-                    <div className="text-sm text-gray-600 mb-2">
-                      {farm.businessType.join(', ')}
+        {farms.map((farm) => (
+          <Marker 
+            key={farm._id} 
+            position={[farm.location.coordinates[1], farm.location.coordinates[0]]}
+            eventHandlers={{
+              click: () => onMarkerClick(farm)
+            }}
+          >
+            <Popup>
+              <div className="py-2">
+                <h3 className="font-bold text-lg mb-1">{farm.name}</h3>
+                {farm.businessType && (
+                  <div className="text-sm text-gray-600 mb-2">
+                    {farm.businessType.join(', ')}
+                  </div>
+                )}
+                {farm.address && (
+                  <div className="text-sm mb-2">
+                    {farm.address.street && <div>{farm.address.street}</div>}
+                    <div>
+                      {[farm.address.city, farm.address.state, farm.address.zipCode]
+                        .filter(Boolean)
+                        .join(', ')}
                     </div>
-                  )}
-                  {farm.address && (
-                    <div className="text-sm mb-2">
-                      {farm.address.street && <div>{farm.address.street}</div>}
-                      <div>
-                        {[farm.address.city, farm.address.state, farm.address.zipCode]
-                          .filter(Boolean)
-                          .join(', ')}
-                      </div>
-                    </div>
-                  )}
-                  {typeof farm.distance === 'number' && (
-                    <div className="text-sm text-gray-600">
-                      {farm.distance.toFixed(1)} miles away
-                    </div>
-                  )}
-                  {farm.description && (
-                    <div className="mt-2 text-sm">
-                      {farm.description}
-                    </div>
-                  )}
-                  {farm.deliveryOptions?.deliveryDetails && (
-                    <div className="mt-2 text-sm text-green-600">
-                      {farm.deliveryOptions.deliveryDetails}
-                    </div>
-                  )}
-                  {farm.deliveryOptions?.pickupDetails && (
-                    <div className="mt-2 text-sm text-green-600">
-                      {farm.deliveryOptions.pickupDetails}
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+                  </div>
+                )}
+                {typeof farm.distance === 'number' && (
+                  <div className="text-sm text-gray-600">
+                    {farm.distance.toFixed(1)} miles away
+                  </div>
+                )}
+                {farm.description && (
+                  <div className="mt-2 text-sm">
+                    {farm.description}
+                  </div>
+                )}
+                {farm.deliveryOptions?.deliveryDetails && (
+                  <div className="mt-2 text-sm text-green-600">
+                    {farm.deliveryOptions.deliveryDetails}
+                  </div>
+                )}
+                {farm.deliveryOptions?.pickupDetails && (
+                  <div className="mt-2 text-sm text-green-600">
+                    {farm.deliveryOptions.pickupDetails}
+                  </div>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
     </div>
   );
