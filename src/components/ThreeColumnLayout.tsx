@@ -12,7 +12,7 @@ interface Farm {
   name: string;
   businessType: string[];
   location: {
-    coordinates: [number, number];  // [longitude, latitude]
+    coordinates: [number, number];  // [longitude, latitude] from MongoDB
   };
   address: {
     street?: string;
@@ -83,24 +83,24 @@ interface ThreeColumnLayoutProps {
   searchLocation?: [number, number];
 }
 
-// Default center on New York City
-const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];  // [latitude, longitude]
+// Convert MongoDB coordinates [longitude, latitude] to Leaflet [latitude, longitude]
+function toLeafletCoordinates(coordinates: [number, number]): [number, number] {
+  return [coordinates[1], coordinates[0]];
+}
 
 export default function ThreeColumnLayout({ farms, searchLocation }: ThreeColumnLayoutProps) {
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>(searchLocation || DEFAULT_CENTER);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(
+    searchLocation ? toLeafletCoordinates(searchLocation) : [40.7128, -74.0060]
+  );
   const [mapZoom, setMapZoom] = useState(searchLocation ? 11 : 9);
 
   const pickupFarms = farms.filter(farm => farm.deliveryOptions?.localPickup);
   const deliveryFarms = farms.filter(farm => farm.deliveryOptions?.delivery);
 
   const handleFarmClick = (farm: Farm) => {
-    const [longitude, latitude] = farm.location.coordinates;
-    // Convert from [longitude, latitude] to [latitude, longitude]
-    const newCenter: [number, number] = [latitude, longitude];
-    
     setSelectedFarm(farm);
-    setMapCenter(newCenter);
+    setMapCenter(toLeafletCoordinates(farm.location.coordinates));
     setMapZoom(13);
   };
 
