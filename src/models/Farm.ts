@@ -43,6 +43,22 @@ const farmSchema = new mongoose.Schema({
     type: String,
     enum: ['Organic', 'Biodynamic', 'Permaculture', 'Regenerative', 'Other'],
   }],
+  deliveryOptions: {
+    localPickup: {
+      type: Boolean,
+      default: false
+    },
+    delivery: {
+      type: Boolean,
+      default: false
+    },
+    deliveryRange: {
+      type: Number,
+      min: 0
+    },
+    pickupDetails: String,
+    deliveryDetails: String
+  },
   website: String,
   phone: String,
   email: String,
@@ -55,9 +71,6 @@ const farmSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
-
-// This is now handled by the schema definition
-// farmSchema.index({ location: '2dsphere' });
 
 const Farm = mongoose.models.Farm || mongoose.model('Farm', farmSchema);
 
