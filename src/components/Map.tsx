@@ -43,34 +43,70 @@ function toLeafletCoordinates(coordinates: [number, number]): [number, number] {
   return [coordinates[1], coordinates[0]];
 }
 
-function MapController({ center, zoom }: { center: [number, number]; zoom: number }) {
+// Calculate bounds from farm locations
+function calculateBounds(farms: Farm[]): [number, number][] {
+  if (!farms.length) return [];
+  
+  const coordinates = farms.map(farm => toLeafletCoordinates(farm.location.coordinates));
+  const lats = coordinates.map(coord => coord[0]);
+  const lngs = coordinates.map(coord => coord[1]);
+  
+  return [
+    [Math.min(...lats), Math.min(...lngs)],
+    [Math.max(...lats), Math.max(...lngs)]
+  ];
+}
+
+function MapController({ center, zoom, farms }: { center: [number, number]; zoom: number; farms: Farm[] }) {
   const map = useMap();
   
   useEffect(() => {
-    if (map && center && center.length === 2) {
-      map.setView(center, zoom, {
-        animate: true,
-        duration: 0.5
-      });
+    if (map) {
+      if (farms.length > 0) {
+        const bounds = calculateBounds(farms);
+        if (bounds.length) {
+          // If we have farms, fit to their bounds
+          map.fitBounds(bounds, { padding: [50, 50] });
+        }
+      } else {
+        // If no farms or explicit center, use the provided center and zoom
+        map.setView(center, zoom, {
+          animate: true,
+          duration: 0.5
+        });
+      }
     }
-  }, [center, zoom, map]);
+  }, [map, center, zoom, farms]);
   
   return null;
 }
 
+// Default to New York City
 const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
 const DEFAULT_ZOOM = 11;
 
 export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
+  const [mapKey, setMapKey] = useState(0);
+  
+  // Reset map when farms change
+  useEffect(() => {
+    setMapKey(prev => prev + 1);
+  }, [farms.length]);
+
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer 
+        key={mapKey}
         center={center || DEFAULT_CENTER}
         zoom={zoom || DEFAULT_ZOOM}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
       >
-        <MapController center={center || DEFAULT_CENTER} zoom={zoom || DEFAULT_ZOOM} />
+        <MapController 
+          center={center || DEFAULT_CENTER} 
+          zoom={zoom || DEFAULT_ZOOM}
+          farms={farms}
+        />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -78,7 +114,6 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
         />
         
         {farms.map((farm) => {
-          // Always convert from MongoDB format to Leaflet format
           const markerPosition = toLeafletCoordinates(farm.location.coordinates);
           
           return (
