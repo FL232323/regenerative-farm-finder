@@ -73,15 +73,19 @@ export async function GET(request: NextRequest) {
       {
         $search: {
           "index": "Farmsearch",
-          "geoWithin": {
-            "path": "location",
-            "circle": {
-              "center": {
-                "type": "Point",
-                "coordinates": [location.lon, location.lat]
-              },
-              "radius": radiusInMeters
-            }
+          "compound": {
+            "must": [{
+              "geoWithin": {
+                "path": "location",
+                "circle": {
+                  "center": {
+                    "type": "Point",
+                    "coordinates": [location.lon, location.lat]
+                  },
+                  "radius": radiusInMeters
+                }
+              }
+            }]
           }
         }
       },
@@ -128,6 +132,17 @@ export async function GET(request: NextRequest) {
               ]
             }, 1]
           }
+        }
+      },
+      {
+        $match: {
+          $or: [
+            {"deliveryOptions.localPickup": true},
+            {
+              "deliveryOptions.delivery": true,
+              distance: { $lte: "$deliveryOptions.deliveryRange" }
+            }
+          ]
         }
       }
     ];
