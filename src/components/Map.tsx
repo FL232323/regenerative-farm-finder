@@ -42,10 +42,18 @@ function MapController({ center, zoom }: { center: [number, number]; zoom: numbe
   const map = useMap();
   
   useEffect(() => {
-    map.setView(center, zoom, {
-      animate: true,
-      duration: 0.5
-    });
+    console.log('MapController - New center:', center);
+    console.log('MapController - New zoom:', zoom);
+    
+    if (map && center && center.length === 2 && !isNaN(center[0]) && !isNaN(center[1])) {
+      console.log('Setting map view to:', center);
+      map.setView(center, zoom, {
+        animate: true,
+        duration: 0.5
+      });
+    } else {
+      console.warn('Invalid map center or zoom:', { center, zoom });
+    }
   }, [center, zoom, map]);
   
   return null;
@@ -55,15 +63,23 @@ const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
 const DEFAULT_ZOOM = 11;
 
 export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }: MapProps) {
+  console.log('Map component render:', { center, zoom, selectedFarm: selectedFarm?.name });
+
+  const validCenter = center && center.length === 2 && !isNaN(center[0]) && !isNaN(center[1])
+    ? center
+    : DEFAULT_CENTER;
+  
+  const validZoom = !isNaN(zoom) ? zoom : DEFAULT_ZOOM;
+
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
       <MapContainer 
-        center={center || DEFAULT_CENTER}
-        zoom={zoom || DEFAULT_ZOOM}
+        center={validCenter}
+        zoom={validZoom}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%' }}
       >
-        <MapController center={center || DEFAULT_CENTER} zoom={zoom || DEFAULT_ZOOM} />
+        <MapController center={validCenter} zoom={validZoom} />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -71,13 +87,22 @@ export default function Map({ farms, center, zoom, selectedFarm, onMarkerClick }
         />
         
         {farms.map((farm) => {
-          const isSelected = selectedFarm?._id === farm._id;
+          const coordinates: [number, number] = [
+            farm.location.coordinates[1],
+            farm.location.coordinates[0]
+          ];
+          
+          console.log(`Marker for ${farm.name}:`, coordinates);
+          
           return (
             <Marker 
               key={farm._id} 
-              position={[farm.location.coordinates[1], farm.location.coordinates[0]]}
+              position={coordinates}
               eventHandlers={{
-                click: () => onMarkerClick(farm)
+                click: () => {
+                  console.log('Marker clicked:', farm.name);
+                  onMarkerClick(farm);
+                }
               }}
             >
               <Popup>
