@@ -14,7 +14,6 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
   lastRequestTime = Date.now();
 
   try {
-    console.log('Geocoding zip code:', zipCode);
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?postalcode=${zipCode}&country=USA&format=json&limit=1`,
       {
@@ -26,22 +25,17 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
     );
 
     if (!response.ok) {
-      console.error('Geocoding response not ok:', response.status);
       throw new Error('Geocoding service error');
     }
 
     const data = await response.json();
-    console.log('Geocoding response:', data);
     
     if (data && data.length > 0) {
-      const result = {
+      return {
         lat: parseFloat(data[0].lat),
         lon: parseFloat(data[0].lon)
       };
-      console.log('Parsed coordinates:', result);
-      return result;
     }
-    console.log('No geocoding results found');
     return null;
   } catch (error) {
     console.error('Geocoding error:', error);
@@ -51,23 +45,14 @@ async function geocodeZipCode(zipCode: string): Promise<{ lat: number; lon: numb
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('Starting search request');
     await connectDB();
-    console.log('MongoDB connected');
     
-    // First, let's verify we can query the collection at all
-    const totalDocs = await Farm.countDocuments();
-    console.log('Total documents in collection:', totalDocs);
-
     const searchParams = request.nextUrl.searchParams;
     const zipCode = searchParams.get('zipCode');
     const radius = Number(searchParams.get('radius')) || 50;
     const type = searchParams.get('type');
-    
-    console.log('Search parameters:', { zipCode, radius, type });
 
     if (!zipCode) {
-      console.log('No zip code provided');
       return NextResponse.json(
         { error: 'Zip code is required' },
         { status: 400 }
@@ -76,17 +61,14 @@ export async function GET(request: NextRequest) {
 
     const location = await geocodeZipCode(zipCode);
     if (!location) {
-      console.log('Geocoding failed');
       return NextResponse.json(
         { error: 'Invalid zip code or geocoding service error' },
         { status: 400 }
       );
     }
 
-    // Convert miles to meters for the search radius
     const radiusInMeters = radius * 1609.34;
 
-    // Build the aggregation pipeline
     const pipeline = [
       {
         $search: {
@@ -102,29 +84,60 @@ export async function GET(request: NextRequest) {
             }
           }
         }
+      },
+      {
+        $addFields: {
+          distance: {
+            $round: [{
+              $multiply: [
+                {
+                  $divide: [
+                    {
+                      $sqrt: {
+                        $add: [
+                          {
+                            $pow: [
+                              {
+                                $multiply: [
+                                  69.1,
+                                  { $subtract: [{ $arrayElemAt: ["$location.coordinates", 1] }, location.lat] }
+                                ]
+                              },
+                              2
+                            ]
+                          },
+                          {
+                            $pow: [
+                              {
+                                $multiply: [
+                                  69.1,
+                                  { $cos: { $degreesToRadians: location.lat } },
+                                  { $subtract: [{ $arrayElemAt: ["$location.coordinates", 0] }, location.lon] }
+                                ]
+                              },
+                              2
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    1
+                  ]
+                },
+                1
+              ]
+            }, 1]
+          }
+        }
       }
     ];
 
-    console.log('Executing aggregation pipeline:', JSON.stringify(pipeline, null, 2));
-
-    try {
-      // First try a simple find to verify database connection
-      const sampleDoc = await Farm.findOne();
-      console.log('Sample document from collection:', sampleDoc);
-
-      // Now execute the search
-      const farms = await Farm.aggregate(pipeline);
-      console.log('Search results:', farms);
-
-      return NextResponse.json(farms, { status: 200 });
-    } catch (error) {
-      console.error('Error during aggregation:', error);
-      throw error;
-    }
+    const farms = await Farm.aggregate(pipeline);
+    return NextResponse.json(farms, { status: 200 });
   } catch (error: any) {
     console.error('Search error:', error);
     return NextResponse.json(
-      { error: 'Error processing search: ' + error.message },
+      { error: 'Error processing search' },
       { status: 500 }
     );
   }
