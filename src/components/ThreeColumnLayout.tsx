@@ -25,7 +25,7 @@ interface Farm {
   deliveryOptions: {
     localPickup: boolean;
     delivery: boolean;
-    deliveryRange: number;
+    deliveryRange?: number;
     pickupDetails?: string;
     deliveryDetails?: string;
   };
@@ -83,19 +83,33 @@ interface ThreeColumnLayoutProps {
   searchLocation?: [number, number];
 }
 
+// Default center on New York City
+const DEFAULT_CENTER: [number, number] = [40.7128, -74.0060];
+const DEFAULT_ZOOM = 10;
+
 export default function ThreeColumnLayout({ farms, searchLocation }: ThreeColumnLayoutProps) {
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>(searchLocation || [39.8283, -98.5795]);
-  const [mapZoom, setMapZoom] = useState(searchLocation ? 10 : 4);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(searchLocation || DEFAULT_CENTER);
+  const [mapZoom, setMapZoom] = useState(searchLocation ? DEFAULT_ZOOM : 8);
 
   const pickupFarms = farms.filter(farm => farm.deliveryOptions?.localPickup);
   const deliveryFarms = farms.filter(farm => farm.deliveryOptions?.delivery);
 
   const handleFarmClick = (farm: Farm) => {
     setSelectedFarm(farm);
-    setMapCenter([farm.location.coordinates[1], farm.location.coordinates[0]]);
-    setMapZoom(13);
+    if (farm.location?.coordinates) {
+      setMapCenter([farm.location.coordinates[1], farm.location.coordinates[0]]);
+      setMapZoom(13);
+    }
   };
+
+  // Update map center when search location changes
+  useEffect(() => {
+    if (searchLocation) {
+      setMapCenter(searchLocation);
+      setMapZoom(DEFAULT_ZOOM);
+    }
+  }, [searchLocation]);
 
   return (
     <div className="h-screen grid grid-cols-1 lg:grid-cols-7 gap-4 p-4">
